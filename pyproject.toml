@@ -1,0 +1,16 @@
+[project]
+name = "aoc-2025"
+version = "0.1.0"
+description = "Advent of Code - 2025"
+requires-python = ">=3.12"
+dependencies = [
+    "pytest",
+    "mypy",
+]
+
+[tool.mypy]
+strict = true
+
+[tool.pytest.ini_options]
+python_files = ["*.py"]
+testpaths = ["apps"]
