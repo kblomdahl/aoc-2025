@@ -1,57 +1,43 @@
 from sys import exit, stdin
-from typing import Generator, Dict, TextIO
+from typing import Dict, TextIO
 from io import StringIO
 
 type Coord = tuple[int, int]
 
-def parse_map(input: TextIO) -> Dict[Coord, str]:
+def parse_map(input: TextIO) -> Dict[Coord, int]:
     lines = [line.strip() for line in input if line.strip()]
 
     return {
-        (x, y): char
+        (x, y): 1
         for y, line in enumerate(lines)
         for x, char in enumerate(line)
+        if char == "@"
     }
 
-def count_paper(map: Dict[Coord, str]) -> int:
-    return sum(1 for char in map.values() if char == "@")
-
-def adjacent_coords(coord: Coord) -> Generator[Coord, None, None]:
+def is_accessible_paper(map: Dict[Coord, int], coord: Coord) -> int:
     x, y = coord
+    adjacent_papers = map.get((x - 1, y - 1), 0) \
+        + map.get((x - 1, y), 0) \
+        + map.get((x - 1, y + 1), 0) \
+        + map.get((x, y - 1), 0) \
+        + map.get((x, y + 1), 0) \
+        + map.get((x + 1, y - 1), 0) \
+        + map.get((x + 1, y), 0) \
+        + map.get((x + 1, y + 1), 0)
 
-    yield (x - 1, y - 1)
-    yield (x - 1, y)
-    yield (x - 1, y + 1)
+    return adjacent_papers < 4
 
-    yield (x, y - 1)
-    yield (x, y + 1)
-
-    yield (x + 1, y - 1)
-    yield (x + 1, y)
-    yield (x + 1, y + 1)
-
-def is_accessible_paper(map: Dict[Coord, str], coord: Coord) -> int:
-    return sum(
-        1
-        for adjacent in adjacent_coords(coord)
-        if map.get(adjacent) == "@"
-    ) < 4
-
-def remove_accessible_paper(map: Dict[Coord, str]) -> Dict[Coord, str]:
+def remove_accessible_paper(map: Dict[Coord, int]) -> Dict[Coord, int]:
     return {
-        coord: "." if char == "@" and is_accessible_paper(map, coord) else char
+        coord: char
         for coord, char in map.items()
+        if not is_accessible_paper(map, coord)
     }
 
-def remove_all_accessible_paper(map: Dict[Coord, str]) -> Dict[Coord, str]:
+def remove_all_accessible_paper(map: Dict[Coord, int]) -> Dict[Coord, int]:
     cleaned_map = map
 
-    while True:
-        new_map = remove_accessible_paper(cleaned_map)
-
-        if count_paper(new_map) == count_paper(cleaned_map):
-            break
-
+    while (new_map := remove_accessible_paper(cleaned_map)) != cleaned_map:
         cleaned_map = new_map
 
     return cleaned_map
@@ -59,8 +45,8 @@ def remove_all_accessible_paper(map: Dict[Coord, str]) -> Dict[Coord, str]:
 def main() -> int:
     map = parse_map(stdin)
 
-    print(sum(1 for coord, char in map.items() if char == "@" and is_accessible_paper(map, coord)))
-    print(count_paper(map) - count_paper(remove_all_accessible_paper(map)))
+    print(len(map) - len(remove_accessible_paper(map)))
+    print(len(map) - len(remove_all_accessible_paper(map)))
 
     return 0
 
@@ -91,9 +77,9 @@ class Test:
 
     def test_example_1(self, example_input: TextIO) -> None:
         map = parse_map(example_input)
-        assert sum(1 for coord, char in map.items() if char == "@" and is_accessible_paper(map, coord)) == 13
+        assert len(map) - len(remove_accessible_paper(map)) == 13
 
     def test_example_2(self, example_input: TextIO) -> None:
         map = parse_map(example_input)
 
-        assert count_paper(map) - count_paper(remove_all_accessible_paper(map)) == 43
+        assert len(map) - len(remove_all_accessible_paper(map)) == 43
