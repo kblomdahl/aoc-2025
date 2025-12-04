@@ -7,21 +7,16 @@ def to_int(numbers: List[int]) -> int:
 
 @cache
 def max_batteries(batteries: str, count: int) -> List[int]:
-    if len(batteries) == 0 or count == 0:
+    if not batteries or count == 0:
         return []
 
-    so_far = None
-
-    for index, n in enumerate(batteries):
-        remaining = batteries[index + 1:]
-        max_remaining = [int(n)] + max_batteries(remaining, count - 1)
-
-        if so_far is None or to_int(max_remaining) > to_int(so_far or []):
-            so_far = max_remaining
-
-    if so_far is None:
-        raise ValueError("empty list")
-    return so_far
+    return max(
+        (
+            [int(n)] + max_batteries(batteries[index + 1:], count - 1)
+            for index, n in enumerate(batteries)
+        ),
+        key=lambda x: (len(x), x)
+    )
 
 def main() -> int:
     banks = [line.strip() for line in stdin if line.strip()]
