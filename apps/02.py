@@ -1,81 +1,52 @@
-from sys import exit, stdin
+from dataclasses import dataclass
+from sys import exit, stdin, maxsize
 from io import StringIO
-from typing import Generator, List, TextIO
+from typing import Generator, List, TextIO, Set
 from functools import reduce
-from math import log10, ceil
 
-class Id:
-    def __init__(self, value: int):
-        self.value = value
-
-    @staticmethod
-    def from_str(s: str) -> 'Id':
-        return Id(int(s))
-
-def split_and_compare(value: int, part_size: int) -> bool:
-    assert part_size > 0, "infinite loop guard"
-
-    half = 10 ** part_size
-    first = value % half
-    remaining = value // half
-
-    while remaining > 0:
-        if remaining % half != first:
-            return False
-        remaining //= half
-
-    return True
-
-def is_invalid(value: int, largest_only: bool = True) -> bool:
-    len = int(ceil(log10(value)))
-    if len == 0:
-        return False # single digit
-
-    max_repeats = 3 if largest_only else len + 1
-
-    for num_repeats in range(2, max_repeats):
-        if len % num_repeats != 0:
-            continue
-
-        part_size = len // num_repeats
-
-        if part_size == 0:
-            print(value, largest_only, num_repeats, len, max_repeats)
-
-        if split_and_compare(value, part_size):
-            return True
-
-    return False
-
+@dataclass
 class IdRange:
-    def __init__(self, first: Id, last: Id):
-        self.first = first
-        self.last = last
+    first: int
+    last: int
 
-    def invalid_ids(self, largest_only: bool = True) -> Generator[int, None, None]:
-        for value in range(self.first.value, self.last.value + 1):
-            if is_invalid(value, largest_only=largest_only):
-                yield value
+    def prefixes(self) -> Generator[int, None, None]:
+        last = str(self.last)
+        first = str(self.first).rjust(len(last), "0")
+
+        for i in range((len(last) + 1) // 2):
+            start = int(first[:i + 1])
+            stop = int(last[:i + 1]) + 1
+
+            yield from range(start if start > 0 else 1, stop)
+
+    def invalid_ids(self, max_repeats: int | None = None) -> Set[int]:
+        result = set()
+
+        for prefix in self.prefixes():
+            remaining_repeats = max_repeats - 1 if max_repeats is not None else maxsize
+            current = str(prefix) * 2
+
+            while (current_value := int(current)) <= self.last and remaining_repeats > 0:
+                if self.first <= current_value <= self.last:
+                    result.add(current_value)
+
+                remaining_repeats -= 1
+                current += str(prefix)
+
+        return result
 
 def parse_id_ranges(input: TextIO) -> List[IdRange]:
-    lines = [line.strip() for line in input if line.strip()]
-
-    def parse_id_range(s: str) -> IdRange:
-        start_str, end_str = s.split("-")
-
-        return IdRange(Id.from_str(start_str), Id.from_str(end_str))
-
-    return reduce(
-        lambda acc, x: acc + list([parse_id_range(s) for s in x.strip().split(",") if s]),
-        lines,
-        []
-    )
+    return [
+        IdRange(*map(int, s.split("-")))
+        for x in input
+        for s in x.strip().split(",") if s
+    ]
 
 def main() -> int:
     id_ranges = parse_id_ranges(stdin)
 
-    print(sum(id for id_range in id_ranges for id in id_range.invalid_ids(largest_only=True)))
-    print(sum(id for id_range in id_ranges for id in id_range.invalid_ids(largest_only=False)))
+    print(sum(id for id_range in id_ranges for id in id_range.invalid_ids(2)))
+    print(sum(id for id_range in id_ranges for id in id_range.invalid_ids()))
 
     return 0
 
@@ -98,7 +69,7 @@ class Test:
         return parse_id_ranges(StringIO(lines))
 
     def test_example_1(self, example_input: List[IdRange]) -> None:
-        assert sum(id for id_range in example_input for id in id_range.invalid_ids(largest_only=True)) == 1227775554
+        assert sum(id for id_range in example_input for id in id_range.invalid_ids(2)) == 1227775554
 
     def test_example_2(self, example_input: List[IdRange]) -> None:
-        assert sum(id for id_range in example_input for id in id_range.invalid_ids(largest_only=False)) == 4174379265
+        assert sum(id for id_range in example_input for id in id_range.invalid_ids()) == 4174379265
