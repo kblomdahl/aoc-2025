@@ -1,28 +1,29 @@
 from sys import exit, stdin
-from typing import List
-from functools import cache
+from typing import Dict, List
 
-def to_int(numbers: List[int]) -> int:
-    return sum(n * (10 ** i) for i, n in enumerate(reversed(numbers)))
+def max_batteries(batteries: str, count: int) -> int:
+    so_far: Dict[int, int] = {}
 
-@cache
-def max_batteries(batteries: str, count: int) -> List[int]:
-    if not batteries or count == 0:
-        return []
+    for remaining_picks in range(0, count):
+        max_previous_value = 0
+        next_so_far = {}
 
-    return max(
-        (
-            [int(n)] + max_batteries(batteries[index + 1:], count - 1)
-            for index, n in enumerate(batteries)
-        ),
-        key=lambda x: (len(x), x)
-    )
+        for i in reversed(range(len(batteries) - remaining_picks)):
+            if so_far.get(i + 1, 0) > max_previous_value:
+                max_previous_value = so_far[i + 1]
+
+            next_so_far[i] = int(batteries[i] + str(max_previous_value if max_previous_value > 0 else ""))
+
+        so_far = next_so_far
+
+    return max(so_far.values())
 
 def main() -> int:
     banks = [line.strip() for line in stdin if line.strip()]
 
-    print(sum(to_int(b) for b in [max_batteries(batteries, 2) for batteries in banks]))
-    print(sum(to_int(b) for b in [max_batteries(batteries, 12) for batteries in banks]))
+    print(sum(b for b in [max_batteries(batteries, 2) for batteries in banks]))
+    print(sum(b for b in [max_batteries(batteries, 12) for batteries in banks]))
+
     return 0
 
 if __name__ == "__main__":
@@ -42,16 +43,10 @@ class Test:
             818181911112111
         """.strip().splitlines()
 
-        return list(map(str.strip, lines))
+        return list([line.strip() for line in lines if line.strip()])
 
     def test_example_1(self, example_input: List[str]) -> None:
-        banks = [line.strip() for line in example_input if line.strip()]
-        chosen_batteries = [max_batteries(batteries, 2) for batteries in banks]
-
-        assert sum(to_int(b) for b in chosen_batteries) == 357
+        assert sum(max_batteries(batteries, 2) for batteries in example_input) == 357
 
     def test_example_2(self, example_input: List[str]) -> None:
-        banks = [line.strip() for line in example_input if line.strip()]
-        chosen_batteries = [max_batteries(batteries, 12) for batteries in banks]
-
-        assert sum(to_int(b) for b in chosen_batteries) == 3121910778619
+        assert sum(max_batteries(batteries, 12) for batteries in example_input) == 3121910778619
