@@ -13,7 +13,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [
             pkgs.stdenv.cc.cc.lib
-            pkgs.python312
+            pkgs.python314
             pkgs.uv
           ];
 
