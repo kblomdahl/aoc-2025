@@ -1,54 +1,35 @@
 from functools import cache
 from sys import exit, stdin
-from typing import List, Set
+from typing import Dict, List
 
 def starting_point(line: str) -> int:
     return line.index('S')
 
-def tachyon_sim(lines: List[str], initial_beam: int) -> int:
-    def tachyon_step(line: str, beams: Set[int]) -> tuple[Set[int], int]:
-        new_beams: Set[int] = set()
-        num_splits = 0
+def tachyon_sim(lines: List[str], initial_beam: int, trace_path: bool = False) -> int:
+    so_far: Dict[tuple[int, int], int] = {}
 
-        for beam in beams:
-            match line[beam]:
-                case '^':
-                    new_beams.add(beam - 1)
-                    new_beams.add(beam + 1)
-                    num_splits += 1
-                case _:
-                    new_beams.add(beam)
-
-        return new_beams, num_splits
-
-    total_splits = 0
-    beams: Set[int] = {initial_beam}
-
-    for line in lines:
-        beams, num_splits = tachyon_step(line, beams)
-        total_splits += num_splits
-
-    return total_splits
-
-def tachyon_quantum_sum(lines: List[str], starting_point: int) -> int:
-    @cache
-    def quantum_step(row: int, beam: int) -> int:
+    def tachyon_step(row: int, beam: int) -> int:
         if row == len(lines):
-            return 1
+            return 1 if trace_path else 0
+        elif (row, beam) in so_far:
+            return so_far[(row, beam)] if trace_path else 0
 
         match lines[row][beam]:
             case '^':
-                return quantum_step(row + 1, beam - 1) + quantum_step(row + 1, beam + 1)
+                result = tachyon_step(row + 1, beam - 1) + tachyon_step(row + 1, beam + 1) + (0 if trace_path else 1)
             case _:
-                return quantum_step(row + 1, beam)
+                result = tachyon_step(row + 1, beam)
 
-    return quantum_step(1, starting_point)
+        so_far[(row, beam)] = result
+        return result
+
+    return tachyon_step(0, initial_beam)
 
 def main() -> int:
     lines = [line.strip() for line in stdin if line.strip()]
 
     print(tachyon_sim(lines[1:], starting_point(lines[0])))
-    print(tachyon_quantum_sum(lines[1:], starting_point(lines[0])))
+    print(tachyon_sim(lines[1:], starting_point(lines[0]), trace_path=True))
 
     return 0
 
@@ -87,4 +68,4 @@ class Test:
         assert tachyon_sim(example_input[1:], starting_point(example_input[0])) == 21
 
     def test_example_2(self, example_input: List[str]) -> None:
-        assert tachyon_quantum_sum(example_input[1:], starting_point(example_input[0])) == 40
+        assert tachyon_sim(example_input[1:], starting_point(example_input[0]), trace_path=True) == 40
