@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "pytest",
     "mypy",
+    "z3-solver"
 ]
 
 [tool.mypy]
