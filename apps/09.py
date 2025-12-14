@@ -3,119 +3,135 @@ from typing import List, TextIO, Tuple
 from dataclasses import dataclass
 from itertools import combinations
 from io import StringIO
+from bisect import bisect_left, bisect_right
+from functools import cache
+
+type Tile = Tuple[int, int]
 
 @dataclass(frozen=True, slots=True)
-class Tile:
-    x: int
-    y: int
+class Borders:
+    horizontal_lines: Tuple[Tuple[Tile, Tile], ...]
+    horizontal_edges: Tuple[Tuple[Tile, Tile], ...]
+    vertical_lines: Tuple[Tuple[Tile, Tile], ...]
+    vertical_edges: Tuple[Tuple[Tile, Tile], ...]
+
+def parse_tile(line: str) -> Tile:
+    x_str, y_str = line.strip().split(",")
+    return (int(x_str), int(y_str))
 
 def parse_tiles(content: TextIO) -> List[Tile]:
-    return [Tile(*map(int, line.strip().split(","))) for line in content if line.strip()]
+    return [parse_tile(line) for line in content if line.strip()]
 
-def build_green_borders(tiles: List[Tile]) -> List[Tuple[Tile, Tile]]:
-    return [(a, b) for a, b in zip(tiles, tiles[1:] + [tiles[0]])]
+def build_green_borders(tiles: List[Tile]) -> Borders:
+    borders = [(a, b) for a, b in zip(tiles, tiles[1:] + [tiles[0]])]
+    horizontal = [(a, b) if a[0] < b[0] else (b, a) for a, b in borders if a[1] == b[1]]
+    vertical = [(a, b) if a[1] < b[1] else (b, a) for a, b in borders if a[0] == b[0]]
+
+    return Borders(
+        horizontal_lines=tuple(sorted(horizontal, key=lambda border: border[0][1])),
+        horizontal_edges=tuple(sorted(horizontal, key=lambda border: border[0][0])),
+        vertical_lines=tuple(sorted(vertical, key=lambda border: border[0][0])),
+        vertical_edges=tuple(sorted(vertical, key=lambda border: border[0][1])),
+    )
+
+def rectangle_area(a: Tile, b: Tile) -> int:
+    return (abs(a[0] - b[0]) + 1) * (abs(a[1] - b[1]) + 1)
 
 def build_every_rectangle(tiles: List[Tile]) -> List[Tuple[Tile, Tile]]:
-    return [
-        (tiles[i], tiles[j])
-        for i, j in combinations(range(len(tiles)), 2)
-    ]
+    return sorted(
+        [(tiles[i], tiles[j]) for i, j in combinations(range(len(tiles)), 2)],
+        key=lambda rect: rectangle_area(rect[0], rect[1]),
+        reverse=True
+    )
 
+@cache
 def point_inside_polygon_1d(
-    borders_1d: List[int],
+    borders: Tuple[Tuple[Tile, Tile], ...],
+    x_index: int,
     x: int,
+    y: int
 ) -> bool:
+    upper = bisect_right(borders, x, key=lambda border: border[0][x_index])
+    y_index = 1 - x_index
     inside = False
 
-    for border in borders_1d:
-        if border < x:
-            inside = not inside
-        elif border == x:
-            inside = True
-            break # on edge
+    for one, two in borders[:upper]:
+        if not (one[y_index] <= y < two[y_index]):
+            continue
+        elif one[x_index] == x:
+            return True
+
+        inside = not inside
 
     return inside
 
+@cache
 def point_on_edge_1d(
-    borders_1d: List[Tuple[int, int]],
+    borders: Tuple[Tuple[Tile, Tile], ...],
+    x_index: int,
     x: int,
+    y: int,
 ) -> bool:
-    on_edge = any(
-        min(one, two) <= x <= max(one, two)
-        for one, two in borders_1d
-    )
+    lower = bisect_left(borders, x, key=lambda border: border[0][x_index])
+    upper = bisect_right(borders, x, key=lambda border: border[0][x_index])
+    y_index = 1 - x_index
 
-    return on_edge
+    return any(one[y_index] <= y <= two[y_index] for one, two in borders[lower:upper])
 
 def line_inside_polygon(
-    borders: List[Tuple[Tile, Tile]],
-    a: Tile,
-    b: Tile
+    borders: Borders,
+    ax: int,
+    ay: int,
+    bx: int,
+    by: int
 ) -> bool:
-    """ Returns true if the rectangle defined by (a, b) is entirely contained
-    within the polygon defined by the borders (inclusive) """
-
-    if a.x == b.x:
-        perpendicular_1d = [
-            one.y for one, two in borders
-            if min(one.x, two.x) <= a.x < max(one.x, two.x)
-            and one.y == two.y
-        ]
-        parallel_1d = [
-            (min(one.y, two.y), max(one.y, two.y)) for one, two in borders
-            if one.x == two.x == a.x
-        ]
+    if ax == bx:
+        upper = bisect_right(borders.horizontal_edges, ax, key=lambda border: border[0][0])
 
         return all(
-            point_inside_polygon_1d(perpendicular_1d, y) or point_on_edge_1d(parallel_1d, y)
-            for y in range(a.y, b.y + 1)
+            point_inside_polygon_1d(borders.horizontal_lines, 1, y, ax)
+            or point_on_edge_1d(borders.vertical_lines, 0, ax, y)
+            for one, two in borders.horizontal_edges[:upper]
+            for y in [one[1] - 1, one[1] + 1]
+            if one[0] <= ax <= two[0] and (ay <= y <= by)
         )
-    elif a.y == b.y:
-        perpendicular_1d = [
-            one.x for one, two in borders
-            if min(one.y, two.y) <= a.y < max(one.y, two.y)
-            and one.x == two.x
-        ]
-        parallel_1d = [
-            (min(one.x, two.x), max(one.x, two.x))
-            for one, two in borders
-            if one.y == two.y == a.y
-        ]
+    elif ay == by:
+        upper = bisect_right(borders.vertical_edges, ay, key=lambda border: border[0][1])
 
         return all(
-            point_inside_polygon_1d(perpendicular_1d, x) or point_on_edge_1d(parallel_1d, x)
-            for x in range(a.x, b.x + 1)
+            point_inside_polygon_1d(borders.vertical_lines, 0, x, ay)
+            or point_on_edge_1d(borders.horizontal_lines, 1, ay, x)
+            for one, two in borders.vertical_edges[:upper]
+            for x in [one[0] - 1, one[0] + 1]
+            if one[1] <= ay <= two[1] and ax <= x <= bx
         )
     else:
         raise ValueError("only horizontal or vertical lines are supported")
 
 def rectangle_inside(
-    borders: List[Tuple[Tile, Tile]],
+    borders: Borders,
     a: Tile,
     b: Tile
 ) -> bool:
-    min_x, max_x = min(a.x, b.x), max(a.x, b.x)
-    min_y, max_y = min(a.y, b.y), max(a.y, b.y)
+    min_x, max_x = min(a[0], b[0]), max(a[0], b[0])
+    min_y, max_y = min(a[1], b[1]), max(a[1], b[1])
 
-    if not line_inside_polygon(borders, Tile(min_x, min_y), Tile(min_x, max_y)):
+    if not line_inside_polygon(borders, min_x, min_y, min_x, max_y):
         return False
-    if not line_inside_polygon(borders, Tile(min_x, max_y), Tile(max_x, max_y)):
+    if not line_inside_polygon(borders, min_x, max_y, max_x, max_y):
         return False
-    if not line_inside_polygon(borders, Tile(max_x, min_y), Tile(max_x, max_y)):
+    if not line_inside_polygon(borders, max_x, min_y, max_x, max_y):
         return False
-    if not line_inside_polygon(borders, Tile(min_x, min_y), Tile(max_x, min_y)):
+    if not line_inside_polygon(borders, min_x, min_y, max_x, min_y):
         return False
     return True
-
-def rectangle_area(a: Tile, b: Tile) -> int:
-    return (abs(a.x - b.x) + 1) * (abs(a.y - b.y) + 1)
 
 def main() -> int:
     tiles = parse_tiles(stdin)
     rectangles, green_borders = build_every_rectangle(tiles), build_green_borders(tiles)
 
-    print(max(rectangle_area(a, b) for a, b in rectangles)) # 4758121828
-    print(max(rectangle_area(a, b) for a, b in rectangles if rectangle_inside(green_borders, a, b))) # 1577956170
+    print(rectangle_area(*rectangles[0])) # 4758121828
+    print(next(rectangle_area(a, b) for a, b in rectangles if rectangle_inside(green_borders, a, b))) # 1577956170
 
     return 0
 
@@ -150,4 +166,4 @@ class Test:
     def test_example_2(self, tiles: List[Tile]) -> None:
         rectangles, green_borders = build_every_rectangle(tiles), build_green_borders(tiles)
 
-        assert max(rectangle_area(a, b) for a, b in rectangles if rectangle_inside(green_borders, a, b)) == 24
+        assert next(rectangle_area(a, b) for a, b in rectangles if rectangle_inside(green_borders, a, b)) == 24
