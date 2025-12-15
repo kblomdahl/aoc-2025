@@ -130,8 +130,8 @@ def main() -> int:
     tiles = parse_tiles(stdin)
     rectangles, green_borders = build_every_rectangle(tiles), build_green_borders(tiles)
 
-    print(rectangle_area(*rectangles[0])) # 4758121828
-    print(next(rectangle_area(a, b) for a, b in rectangles if rectangle_inside(green_borders, a, b))) # 1577956170
+    print(rectangle_area(*rectangles[0]))
+    print(next(rectangle_area(a, b) for a, b in rectangles if rectangle_inside(green_borders, a, b)))
 
     return 0
 
