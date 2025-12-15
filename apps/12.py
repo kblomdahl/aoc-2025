@@ -10,7 +10,7 @@ class Presents:
     regions: List[Tuple[Tuple[int, int], Tuple[int, ...]]]
 
 def parse_shape(input: TextIO) -> List[Tuple[int, int]]:
-    shape = []
+    shape = list[Tuple[int, int]]()
 
     for y, line in enumerate(input):
         line = line.strip()
